@@ -10,7 +10,7 @@
 <meta name="theme-color" content="#6366f1"/>
 <meta name="description" content="تطبيق إدارة المصاريف الشخصية"/>
 <title>محفظتي Pro</title>
-<!-- build:1780551335 -->
+<!-- build:1780552738 -->
 
 <!-- PWA Manifest inline as data URI -->
 <script>
@@ -800,7 +800,7 @@ function renderMain(){
   const uc=unreadCount();
   const mc=unreadMsgCount();
   const navItems=isAdmin()
-    ?[{id:'home',icon:'home',l:tt.home},{id:'accs',icon:'wallet',l:tt.accs},{id:'txs',icon:'list',l:tt.txs},{id:'rpts',icon:'chart',l:tt.rpts},{id:'dash',icon:'dash',l:tt.dash},{id:'msgs',icon:'info',l:isRTL()?'رسائل':'Msgs',badge:mc},{id:'notifs',icon:'bell',l:tt.notifs,badge:uc}]
+    ?[{id:'home',icon:'home',l:tt.home},{id:'accs',icon:'wallet',l:tt.accs},{id:'txs',icon:'list',l:tt.txs},{id:'rpts',icon:'chart',l:tt.rpts},{id:'dash',icon:'dash',l:tt.dash},{id:'msgs',icon:'info',l:isRTL()?'رسائل':'Msgs',badge:mc},{id:'ai',icon:'info',l:isRTL()?'🤖 AI':'🤖 AI'},{id:'notifs',icon:'bell',l:tt.notifs,badge:uc}]
     :[{id:'home',icon:'home',l:tt.home},{id:'accs',icon:'wallet',l:tt.accs},{id:'txs',icon:'list',l:tt.txs},{id:'rpts',icon:'chart',l:tt.rpts},{id:'msgs',icon:'info',l:isRTL()?'رسائل':'Msgs',badge:mc}];
   let pageHtml='';
   if(st.page==='home')pageHtml=renderHome();
