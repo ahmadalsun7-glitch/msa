@@ -1,18 +1,22 @@
-const CACHE_NAME = 'mywallet-v7';
-const SHELL = [
-  './',
-  './index.html'
-];
+const CACHE_NAME = 'mywallet-v8';
 
-// ===== التثبيت: حفظ الملفات الأساسية =====
+// ===== التثبيت =====
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => cache.addAll(SHELL))
+    caches.open(CACHE_NAME).then(cache => {
+      // حفظ الصفحة الرئيسية بكل مساراتها المحتملة
+      return Promise.allSettled([
+        cache.add('./'),
+        cache.add('./index.html'),
+        cache.add('/msa/'),
+        cache.add('/msa/index.html'),
+      ]);
+    })
   );
   self.skipWaiting();
 });
 
-// ===== التفعيل: حذف الكاش القديم =====
+// ===== التفعيل =====
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -22,33 +26,42 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// ===== الطلبات: Cache First + تحديث في الخلفية =====
+// ===== الطلبات =====
 self.addEventListener('fetch', e => {
-  // تجاهل Firebase و API calls
   if (e.request.url.includes('firebaseio.com')) return;
   if (e.request.url.includes('anthropic.com')) return;
-  if (e.request.url.includes('api.')) return;
+  if (e.request.url.includes('exchangerate')) return;
   if (e.request.method !== 'GET') return;
 
   e.respondWith(
     caches.open(CACHE_NAME).then(async cache => {
+      // جرب الكاش أولاً
       const cached = await cache.match(e.request);
 
-      // حدّث الكاش في الخلفية دائماً
-      const fetchPromise = fetch(e.request).then(resp => {
+      // حدّث في الخلفية
+      const networkFetch = fetch(e.request).then(resp => {
         if (resp && resp.status === 200) {
           cache.put(e.request, resp.clone());
         }
         return resp;
       }).catch(() => null);
 
-      // أرجع الكاش فوراً إذا موجود (يعمل أوفلاين)
-      // وإلا انتظر الشبكة
       if (cached) {
-        fetchPromise; // حدّث في الخلفية
+        networkFetch; // تحديث خلفي
         return cached;
       }
-      return fetchPromise || caches.match('./index.html');
+
+      // إذا ما في كاش جرب الشبكة
+      const networkResp = await networkFetch;
+      if (networkResp) return networkResp;
+
+      // آخر خيار: الصفحة الرئيسية من الكاش
+      return (
+        await cache.match('/msa/index.html') ||
+        await cache.match('/msa/') ||
+        await cache.match('./index.html') ||
+        await cache.match('./')
+      );
     })
   );
 });
