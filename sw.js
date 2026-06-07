@@ -1,22 +1,14 @@
-const CACHE_NAME = 'mywallet-v8';
+const CACHE_NAME = 'mywallet-v9';
 
-// ===== التثبيت =====
 self.addEventListener('install', e => {
   e.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      // حفظ الصفحة الرئيسية بكل مساراتها المحتملة
-      return Promise.allSettled([
-        cache.add('./'),
-        cache.add('./index.html'),
-        cache.add('/msa/'),
-        cache.add('/msa/index.html'),
-      ]);
-    })
+    caches.open(CACHE_NAME).then(cache =>
+      cache.addAll(['./', './index.html', './sw.js'])
+    )
   );
   self.skipWaiting();
 });
 
-// ===== التفعيل =====
 self.addEventListener('activate', e => {
   e.waitUntil(
     caches.keys().then(keys =>
@@ -26,19 +18,24 @@ self.addEventListener('activate', e => {
   self.clients.claim();
 });
 
-// ===== الطلبات =====
 self.addEventListener('fetch', e => {
-  if (e.request.url.includes('firebaseio.com')) return;
-  if (e.request.url.includes('anthropic.com')) return;
-  if (e.request.url.includes('exchangerate')) return;
+  const url = e.request.url;
+
+  // تجاهل طلبات غير GET
   if (e.request.method !== 'GET') return;
+
+  // تجاهل APIs الخارجية فقط (بيانات حية)
+  if (url.includes('firebaseio.com')) return;
+  if (url.includes('anthropic.com')) return;
+  if (url.includes('generativelanguage.googleapis.com')) return;
+  if (url.includes('exchangerate-api.com')) return;
+  if (url.includes('open.er-api.com')) return;
 
   e.respondWith(
     caches.open(CACHE_NAME).then(async cache => {
-      // جرب الكاش أولاً
       const cached = await cache.match(e.request);
 
-      // حدّث في الخلفية
+      // تحديث الكاش في الخلفية
       const networkFetch = fetch(e.request).then(resp => {
         if (resp && resp.status === 200) {
           cache.put(e.request, resp.clone());
@@ -46,22 +43,18 @@ self.addEventListener('fetch', e => {
         return resp;
       }).catch(() => null);
 
+      // إذا موجود في الكاش أرجعه فوراً (يعمل أوفلاين)
       if (cached) {
-        networkFetch; // تحديث خلفي
+        networkFetch;
         return cached;
       }
 
-      // إذا ما في كاش جرب الشبكة
+      // وإلا انتظر الشبكة
       const networkResp = await networkFetch;
       if (networkResp) return networkResp;
 
-      // آخر خيار: الصفحة الرئيسية من الكاش
-      return (
-        await cache.match('/msa/index.html') ||
-        await cache.match('/msa/') ||
-        await cache.match('./index.html') ||
-        await cache.match('./')
-      );
+      // آخر خيار: الصفحة الرئيسية
+      return cache.match('./index.html');
     })
   );
 });
