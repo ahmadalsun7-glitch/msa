@@ -10,7 +10,8 @@
 <meta name="theme-color" content="#6366f1"/>
 <meta name="description" content="تطبيق إدارة المصاريف الشخصية"/>
 <title>محفظتي Pro</title>
-<!-- build:1780552738 -->
+<link rel="manifest" href="/msa/manifest.json"/>
+<!-- build:1781440000 -->
 
 <!-- PWA Manifest inline as data URI -->
 <script>
@@ -19,7 +20,8 @@
     name:'محفظتي',
     short_name:'محفظتي',
     description:'تطبيق إدارة المصاريف الشخصية',
-    start_url:location.href,
+    start_url:'/msa/',
+    scope:'/msa/',
     display:'standalone',
     orientation:'portrait',
     background_color:'#6366f1',
@@ -27,8 +29,8 @@
     lang:'ar',
     dir:'rtl',
     icons:[
-      {src:_icon(192),sizes:'192x192',type:'image/png',purpose:'any maskable'},
-      {src:_icon(512),sizes:'512x512',type:'image/png',purpose:'any maskable'}
+      {src:'/msa/icon-192.png',sizes:'192x192',type:'image/png',purpose:'any maskable'},
+      {src:'/msa/icon-512.png',sizes:'512x512',type:'image/png',purpose:'any maskable'}
     ]
   };
   function _icon(sz){
@@ -440,6 +442,8 @@ body.ltr .card-stripe{right:auto;left:0;border-radius:14px 0 0 14px}
 // CLOUD keys (shared):     em_users, em_accs, em_txs, em_cats, em_notifs
 // ============================================================
 const FIREBASE_URL = 'https://my-wallet-c7260-default-rtdb.firebaseio.com';
+const PROXY_URL='https://mywallet-ai-proxy.ahmadalsun7.workers.dev';
+const AKEY='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';
 const LOCAL_KEYS = ['em_cur', 'em_sets'];
 
 const S = {
@@ -464,7 +468,7 @@ const S = {
     try{
       await fetch(`${FIREBASE_URL}/${key}.json`,{
         method:'PUT',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json','x-api-key':AKEY,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
         body: JSON.stringify(value)
       });
     }catch(e){ console.error('SET error:',e); }
@@ -2491,20 +2495,19 @@ async function processOCR(file){
 Reply with JSON only, no extra text:
 {"amount":123.45,"date":"2025-01-15","merchant":"Store Name","category":"food","note":"short description"}`;
 
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    const resp=await fetch(PROXY_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:300,
-        messages:[{role:'user',content:[
-          {type:'image',source:{type:'base64',media_type:file.type||'image/jpeg',data:base64}},
-          {type:'text',text:prompt}
-        ]}]
+        contents:[{role:'user',parts:[
+          {inline_data:{mime_type:file.type||'image/jpeg',data:base64}},
+          {text:prompt}
+        ]}],
+        generationConfig:{maxOutputTokens:300}
       })
     });
     const data=await resp.json();
-    const text=data.content?.[0]?.text||'{}';
+    const text=data.candidates?.[0]?.content?.parts?.[0]?.text||'{}';
     const clean=text.replace(/```json|```/g,'').trim();
     const parsed=JSON.parse(clean);
 
@@ -3342,19 +3345,18 @@ async function sendAIMsg(text){
 أجب بشكل مفيد ومحدد بناءً على هذه البيانات. استخدم إيموجي عند المناسبة. لا تتجاوز 200 كلمة.`;
 
   try{
-    const history=st._aiMsgs.slice(-8).map(m=>({role:m.role,content:m.content}));
-    const resp=await fetch('https://api.anthropic.com/v1/messages',{
+    const history=st._aiMsgs.slice(-8).map(m=>({role:m.role==='assistant'?'model':'user',parts:[{text:m.content}]}));
+    const resp=await fetch(PROXY_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:500,
-        system:systemPrompt,
-        messages:history
+        system_instruction:{parts:[{text:systemPrompt}]},
+        contents:history,
+        generationConfig:{maxOutputTokens:500}
       })
     });
     const data=await resp.json();
-    const reply=data.content?.[0]?.text||( isAr?'عذراً، حدث خطأ. حاول مجدداً.':'Sorry, an error occurred.');
+    const reply=data.candidates?.[0]?.content?.parts?.[0]?.text||(isAr?'عذراً، حدث خطأ. حاول مجدداً.':'Sorry, an error occurred.');
     st._aiMsgs.push({role:'assistant',content:reply});
   }catch(e){
     st._aiMsgs.push({role:'assistant',content:isAr?'⚠️ تعذر الاتصال. تحقق من الإنترنت.':'⚠️ Connection failed. Check internet.'});
@@ -3539,7 +3541,7 @@ S.set = async function(key,value){
     try{
       await fetch(`${FIREBASE_URL}/${key}.json`,{
         method:'PUT',
-        headers:{'Content-Type':'application/json'},
+        headers:{'Content-Type':'application/json','x-api-key':AKEY,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'},
         body:JSON.stringify(value),
         signal:AbortSignal.timeout(8000)
       });
@@ -3561,7 +3563,7 @@ async function syncPending(){
   for(const [key,val] of Object.entries(latest)){
     try{
       await fetch(`${FIREBASE_URL}/${key}.json`,{
-        method:'PUT', headers:{'Content-Type':'application/json'}, body:JSON.stringify(val)
+        method:'PUT', headers:{'Content-Type':'application/json','x-api-key':AKEY,'anthropic-version':'2023-06-01','anthropic-dangerous-allow-browser':'true'}, body:JSON.stringify(val)
       });
     }catch(e){ ok=false; }
   }
@@ -3854,7 +3856,7 @@ function renderBackupModal(){
 (function registerSW(){
   if(!('serviceWorker' in navigator)) return;
   window.addEventListener('load', ()=>{
-    navigator.serviceWorker.register('/sw.js')
+    navigator.serviceWorker.register('/msa/sw.js', {scope: '/msa/'})
       .then(reg=>{ console.log('SW registered:', reg.scope); })
       .catch(err=>{ console.warn('SW registration failed:', err); });
   });
@@ -3948,17 +3950,13 @@ async function aiClassify(note, amount){
   try{
     const catList = st.cats.map(c=>`${c.id}:${c.ar}/${c.en}`).join(', ');
     const prompt = `You are a financial transaction classifier. Given a transaction note and amount, pick the BEST matching category ID from this list: ${catList}. Transaction: "${note}", Amount: ${amount}. Respond with ONLY the category ID (e.g. c1), nothing else.`;
-    const resp = await fetch('https://api.anthropic.com/v1/messages',{
+    const resp = await fetch(PROXY_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body: JSON.stringify({
-        model:'claude-sonnet-4-20250514',
-        max_tokens:20,
-        messages:[{role:'user',content:prompt}]
-      })
+      body: JSON.stringify({contents:[{role:'user',parts:[{text:prompt}]}],generationConfig:{maxOutputTokens:20}})
     });
     const data = await resp.json();
-    const catId = data.content?.[0]?.text?.trim();
+    const catId = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
     if(catId && st.cats.find(c=>c.id===catId)) return catId;
   }catch(e){}
   return null;
